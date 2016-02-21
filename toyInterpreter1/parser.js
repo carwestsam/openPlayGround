@@ -724,21 +724,21 @@ module.exports = (function() {
 
     function Num( number ){
     	this.type = "Number";
-        this.value = number;
+      this.value = number;
     }
+
     var isNum = function(obj){
     	return ( obj instanceof Num );
     }
 
     function Id( name ){
     	this.type = "Id";
-        this.name = name;
+      this.name = name;
     }
 
     var isId = function(obj){
     	return ( obj instanceof Id );
     }
-
 
     function None(){
       this.type = "None";
@@ -756,9 +756,20 @@ module.exports = (function() {
       console.log("xError", msg, obj);
     }
 
-    function Func(name, body){
+    function Func(name, body, argNum){
       this.type = "Function";
-      this.apply = body;
+    	this.name = name;
+      //this.apply = body;
+    	this.argNum = argNum || -1;
+
+    	var $this = this;
+    	this.apply = function(env, args){
+    		if ( argNum>=0 && length(args)!=$this.argNum ){
+    			return new xError("Function " + $this.name + " expected " + argNum + " argument(s) but got " + length(args));
+    		}
+    		debugger;
+    		return body(env, args);
+    	}
     }
 
     var isFunc = function(obj){
@@ -806,7 +817,6 @@ module.exports = (function() {
     			if ( args.tail.type == "None" ){
     				return new Num( ((args.head).eval(env)).value );
     			}else {
-    				debugger;
     				return new Num( coreFunc( ((args.head).eval(env)).value, inter(env, args.tail).value ));
     			}
     		}

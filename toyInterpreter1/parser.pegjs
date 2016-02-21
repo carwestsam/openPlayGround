@@ -2,21 +2,21 @@
 
 function Num( number ){
 	this.type = "Number";
-    this.value = number;
+  this.value = number;
 }
+
 var isNum = function(obj){
 	return ( obj instanceof Num );
 }
 
 function Id( name ){
 	this.type = "Id";
-    this.name = name;
+  this.name = name;
 }
 
 var isId = function(obj){
 	return ( obj instanceof Id );
 }
-
 
 function None(){
   this.type = "None";
@@ -34,9 +34,20 @@ function xError(msg, obj){
   console.log("xError", msg, obj);
 }
 
-function Func(name, body){
+function Func(name, body, argNum){
   this.type = "Function";
-  this.apply = body;
+	this.name = name;
+  //this.apply = body;
+	this.argNum = argNum || -1;
+
+	var $this = this;
+	this.apply = function(env, args){
+		if ( argNum>=0 && length(args)!=$this.argNum ){
+			return new xError("Function " + $this.name + " expected " + argNum + " argument(s) but got " + length(args));
+		}
+		debugger;
+		return body(env, args);
+	}
 }
 
 var isFunc = function(obj){
@@ -50,6 +61,9 @@ function Cons(head, tail){
 }
 var isCons = function(obj){
 	return ( obj instanceof Cons );
+}
+var isConsOrNone = function(obj){
+	return isCons(obj) || isNone(obj);
 }
 
 
@@ -93,7 +107,7 @@ var basicFuncBuilder = function ( name, coreFunc ){
 	});
 }
 
-var defineFunc = new Func("define", function(env, args){
+var define = new Func("define", function(env, args){
 	if ( length(args) != 2 ){
 		return new xError("def accept 2 arguments");
 	}
@@ -101,12 +115,31 @@ var defineFunc = new Func("define", function(env, args){
 	return new None();
 });
 
+var lambda = new Func("lambda", function(env, args){
+	if ( !isCons(args) || !isConsOrNone(args.head) || !isCons(args.tail)  ){
+		return new xError("invalid lambda format");
+	}
+
+	var tmpObj = args;
+	while ( !isNone(tmpObj) ){
+		if (!isId(tmpObj.head)){
+			return new xError("invalid lambda param list");
+		}
+		tmpObj = tmpObj.tail;
+	}
+
+	return new Func("anonymous", function(e, a){
+
+	}, length(args.head));
+})
+
 var internalFunctions = {
 	"+": basicFuncBuilder("+", function(a,b) { return a+b;}),
 	"-": basicFuncBuilder("-", function(a,b) { return a-b;}),
 	"*": basicFuncBuilder("*", function(a,b) { return a*b;}),
 	"/": basicFuncBuilder("/", function(a,b) { return a/b;}),
-	"def": defineFunc
+	"def": define,
+	"lambda" : lambda
 };
 
 
