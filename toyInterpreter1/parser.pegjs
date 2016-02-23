@@ -1,5 +1,14 @@
 {
 
+function Boolean(value){
+	this.type = "Boolean";
+	this.value= value;
+}
+
+var isBoolean=function(obj){
+	return (obj instanceof Boolean);
+}
+
 function Num( number ){
 	this.type = "Number";
   this.value = number;
@@ -37,17 +46,8 @@ function xError(msg, obj){
 function Func(name, body, argNum){
   this.type = "Function";
 	this.name = name;
-  //this.apply = body;
+  this.apply = body;
 	this.argNum = argNum || -1;
-
-	var $this = this;
-	this.apply = function(env, args){
-		if ( argNum>=0 && length(args)!=$this.argNum ){
-			return new xError("Function " + $this.name + " expected " + argNum + " argument(s) but got " + length(args));
-		}
-		debugger;
-		return body(env, args);
-	}
 }
 
 var isFunc = function(obj){
@@ -66,7 +66,6 @@ var isConsOrNone = function(obj){
 	return isCons(obj) || isNone(obj);
 }
 
-
 function ArrayToList(array){
 	function combine(idx, len, array){
     	if ( idx + 1 == len ){
@@ -84,88 +83,6 @@ function ArrayToList(array){
     }
 }
 
-Array.prototype.eval = function(env){
-	for ( var i=0, len=this.length; i<len; i++ ){
-    	this[i].eval(env);
-    }
-}
-
-var basicFuncBuilder = function ( name, coreFunc ){
-	var inter = function (env, args){
-		if ( args.type == "None" ){
-			return inter;
-		}else if ( args.type == "Cons" ){
-			if ( args.tail.type == "None" ){
-				return new Num( ((args.head).eval(env)).value );
-			}else {
-				return new Num( coreFunc( ((args.head).eval(env)).value, inter(env, args.tail).value ));
-			}
-		}
-	}
-	return new Func(name, function(env, args){
-		return inter(env, args);
-	});
-}
-
-var define = new Func("define", function(env, args){
-	if ( length(args) != 2 ){
-		return new xError("def accept 2 arguments");
-	}
-	env[(args.head).name] = ((args.tail).head).eval(env);
-	return new None();
-});
-
-var lambda = new Func("lambda", function(env, args){
-	if ( !isCons(args) || !isConsOrNone(args.head) || !isCons(args.tail)  ){
-		return new xError("invalid lambda format");
-	}
-
-	var tmpObj = args;
-	while ( !isNone(tmpObj) ){
-		if (!isId(tmpObj.head)){
-			return new xError("invalid lambda param list");
-		}
-		tmpObj = tmpObj.tail;
-	}
-
-	return new Func("anonymous", function(e, a){
-
-	}, length(args.head));
-})
-
-var internalFunctions = {
-	"+": basicFuncBuilder("+", function(a,b) { return a+b;}),
-	"-": basicFuncBuilder("-", function(a,b) { return a-b;}),
-	"*": basicFuncBuilder("*", function(a,b) { return a*b;}),
-	"/": basicFuncBuilder("/", function(a,b) { return a/b;}),
-	"def": define,
-	"lambda" : lambda
-};
-
-
-Id.prototype.eval = function(env){
-	if ( internalFunctions.hasOwnProperty(this.name) ){
-    	return internalFunctions[this.name];
-	}else if ( env.hasOwnProperty( this.name ) ){
-    	return env[this.name];
-  }else {
-    	return new xError("Id work xError", this);
-  }
-}
-
-xError.prototype.eval = function(env){
-	return this;
-}
-
-Cons.prototype.eval = function(env){
-	var head = (this.head).eval(env);
-    if ( head.type == "Function" ){
-    	return head.apply( env, this.tail );
-    }else {
-    	return new xError("can't be apply", this);
-    }
-}
-
 function length(obj){
 	if ( isNone(obj) ){
 		return 0;
@@ -176,24 +93,81 @@ function length(obj){
 	}
 }
 
-Num.prototype.eval = function(env){
-	return this;
+function $apply(code, args, globalEnv, scope){
+	if ( isFunc(code) ){
+		if ( code.name == "+" ){
+			function tmpFunc(list, _global, _scope){
+				if ( isNone(list) ) { return new Num(0);}
+				else { return new Num($eval(list.head, _global, _scope).value + tmpFunc(list.tail, _global, _scope).value); }
+			}
+			return tmpFunc(args, globalEnv, scope );
+		}
+	}else {
+		return new xError("can't be apply of code", {"code":code,"arguments":args});
+	}
+}
+
+function $eval( _code, _globalEnv, _callerEnv )
+{
+	var code = _code || [];
+	var globalEnv = _globalEnv || {};
+	var callerEnv = _callerEnv || {};
+
+	var scope = {"callerEnv":callerEnv};
+	if ( code.__proto__ === Array.prototype ){
+		for ( var idx=0; idx<code.length; idx++ ){
+			console.log($eval( code[idx], globalEnv, callerEnv));
+		}
+	}else{
+		switch (code.type){
+			case "Number":
+				return new Num(code.value);
+				break;
+			case "Boolean":
+				return new Boolean(code.value);
+				break;
+			case "Cons":
+				return $apply( $eval(code.head, globalEnv, scope), code.tail, globalEnv, callerEnv);
+				break;
+			case "Id":
+				if (code.name == "+" ){
+					return new Func("+", {});
+				}
+				break;
+			default:
+				return new xError("unknow type to Eval", code);
+		}
+	}
+}
+
+function Program( stmtList ){
+	var program = this;
+	this.stmtList = stmtList;
+	this.eval = function(globalEnv){
+		return $eval(program.stmtList, globalEnv);
+	};
+}
+
 }
 
 
-}
 
-program = (_ fac:factor _ {return fac;})*
+program = prog:(_ fac:factor _ {return fac})* {return new Program(prog);}
 
 list = list:(item:factor _ {return item;})* { return ArrayToList(list); }
 
-factor = symbol / word/ number / ("(" _ l:list _ ")") {return l;}
+factor = symbol / word/ number / Boolean / ("(" _ l:list _ ")") {return l;}
 
 symbol = sym:("+" / "-" / "*" / "/") { return new Id(sym); }
 
 word = wordStart letter* { return new Id(text());}
 wordStart = [a-zA-Z]
 letter = [a-zA-Z0-9]
+
+
+Boolean= BoolTrue / BoolFalse
+BoolTrue='#t' { return new Boolean(true);}
+BoolFalse='#f' { return new Boolean(false);}
 
 number = integer { return new Num(parseInt(text())) }
 integer = zero / (digit1_9 digit*)

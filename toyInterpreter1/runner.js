@@ -8,10 +8,8 @@ rl.prompt();
 $scope = {}
 
 rl.on('line', function(line) {
-    var result = parser.parse(line);
-    for ( var i=0, len=result.length; i<len; i++ ){
-      console.log(result[i].eval($scope));
-    }
+    var program = parser.parse(line);
+    program.eval($scope);
     rl.prompt();
 }).on('close', function() {
     console.log('Have a great day!');
