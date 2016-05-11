@@ -523,7 +523,7 @@ var Foo =
 	        React.createElement(
 	          'h1',
 	          { className: 'margin-bottom-sm' },
-	          'TW-Featured Resource List'
+	          'TW-Featured Resource List xx'
 	        ),
 	        React.createElement(
 	          'p',
@@ -643,7 +643,7 @@ var Foo =
 	    "title": "list-title2"
 	  }]
 	};
-	initReact(fakeConfig);
+	//initReact(fakeConfig);
 
 /***/ },
 /* 1 */
